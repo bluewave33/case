@@ -208,7 +208,16 @@
                                         const file = e.dataTransfer.files[0];
                                         if (file && file.type.startsWith('image/')) {
                                             const reader = new FileReader();
-                                            reader.onload = ev => setForm(f => ({...f, image: ev.target.result}));
+                                            reader.onload = async ev => {
+                                                setForm(f => ({...f, image: ev.target.result, imageUploading: true}));
+                                                try {
+                                                    const url = await uploadImageToGitHub(ev.target.result, file.name);
+                                                    setForm(f => ({...f, image: url, imageUploading: false}));
+                                                } catch(e) {
+                                                    setForm(f => ({...f, imageUploading: false}));
+                                                    alert('GitHub 업로드 실패: ' + e.message + '\n로컬 이미지로 저장됩니다.');
+                                                }
+                                            };
                                             reader.readAsDataURL(file);
                                         }
                                     }}
@@ -216,9 +225,19 @@
                                         const item = Array.from(e.clipboardData.items).find(i => i.type.startsWith('image/'));
                                         if (item) {
                                             e.preventDefault();
+                                            const file = item.getAsFile();
                                             const reader = new FileReader();
-                                            reader.onload = ev => setForm(f => ({...f, image: ev.target.result}));
-                                            reader.readAsDataURL(item.getAsFile());
+                                            reader.onload = async ev => {
+                                                setForm(f => ({...f, image: ev.target.result, imageUploading: true}));
+                                                try {
+                                                    const url = await uploadImageToGitHub(ev.target.result, 'pasted_image.png');
+                                                    setForm(f => ({...f, image: url, imageUploading: false}));
+                                                } catch(e) {
+                                                    setForm(f => ({...f, imageUploading: false}));
+                                                    alert('GitHub 업로드 실패: ' + e.message + '\n로컬 이미지로 저장됩니다.');
+                                                }
+                                            };
+                                            reader.readAsDataURL(file);
                                         }
                                     }}
                                     onClick={() => document.getElementById('imgFileInput').click()}
@@ -226,17 +245,34 @@
                                     style={{minHeight: '120px'}}
                                 >
                                     <input id="imgFileInput" type="file" accept="image/*" className="hidden"
-                                        onChange={e => {
+                                        onChange={async e => {
                                             const file = e.target.files[0];
                                             if (file) {
                                                 const reader = new FileReader();
-                                                reader.onload = ev => setForm(f => ({...f, image: ev.target.result}));
+                                                reader.onload = async ev => {
+                                                    setForm(f => ({...f, image: ev.target.result, imageUploading: true}));
+                                                    try {
+                                                        const url = await uploadImageToGitHub(ev.target.result, file.name);
+                                                        setForm(f => ({...f, image: url, imageUploading: false}));
+                                                    } catch(e) {
+                                                        setForm(f => ({...f, imageUploading: false}));
+                                                        alert('GitHub 업로드 실패: ' + e.message + '\n로컬 이미지로 저장됩니다.');
+                                                    }
+                                                };
                                                 reader.readAsDataURL(file);
                                             }
                                         }} />
-                                    {form.image ? (
+                                    {form.imageUploading ? (
+                                        <div className="flex flex-col items-center justify-center h-28 gap-2 text-amber-500">
+                                            <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                                            <p className="text-sm font-medium">GitHub에 업로드 중...</p>
+                                        </div>
+                                    ) : form.image ? (
                                         <div className="relative">
                                             <img src={form.image} alt="preview" className="w-full h-32 object-cover" />
+                                            {form.image.startsWith('data:') && (
+                                                <div className="absolute bottom-0 left-0 right-0 bg-orange-500/80 text-white text-xs text-center py-1">⚠ 로컬 이미지 (다른 PC에서 안 보일 수 있음)</div>
+                                            )}
                                             <button
                                                 onClick={e => { e.stopPropagation(); setForm(f => ({...f, image: ''})); }}
                                                 className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-black/70"
