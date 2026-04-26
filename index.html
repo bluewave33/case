@@ -121,6 +121,51 @@
             );
         }
 
+        /* ───── GitHub 업로드 함수 ───── */
+        async function uploadToGitHub(base64Data, fileName, folder) {
+            const cfg = loadGhConfig();
+            if (!cfg.token) throw new Error('GitHub 토큰이 없습니다. Gist 연동을 먼저 설정해주세요.');
+
+            const userRes = await fetch('https://api.github.com/user', {
+                headers: { Authorization: `token ${cfg.token}`, Accept: 'application/vnd.github.v3+json' }
+            });
+            if (!userRes.ok) throw new Error('GitHub 인증 실패');
+            const user = await userRes.json();
+            const owner = user.login;
+
+            const reposRes = await fetch(`https://api.github.com/users/${owner}/repos?per_page=100`, {
+                headers: { Authorization: `token ${cfg.token}`, Accept: 'application/vnd.github.v3+json' }
+            });
+            const repos = await reposRes.json();
+            const targetRepo = repos.find(r => r.name === 'stock-news') || repos[0];
+            if (!targetRepo) throw new Error('stock-news 레포를 찾을 수 없습니다.');
+
+            const repo = targetRepo.name;
+            const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+            const path = `${folder}/${Date.now()}_${safeName}`;
+            const content = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+
+            const uploadRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, {
+                method: 'PUT',
+                headers: { Authorization: `token ${cfg.token}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: `Upload ${fileName}`, content: content })
+            });
+            if (!uploadRes.ok) {
+                const err = await uploadRes.json();
+                throw new Error(err.message || uploadRes.status);
+            }
+            const data = await uploadRes.json();
+            return data.content.download_url;
+        }
+
+        async function uploadImageToGitHub(base64Data, fileName) {
+            return uploadToGitHub(base64Data, fileName, 'images');
+        }
+
+        async function uploadFileToGitHub(base64Data, fileName) {
+            return uploadToGitHub(base64Data, fileName, 'attachments');
+        }
+
         /* ───── AddNewsModal ───── */
         function AddNewsModal({ onClose, onAdd, allTags }) {
             const [form, setForm] = useState({
